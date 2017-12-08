@@ -411,7 +411,7 @@ def calc_rolling_request_rate(series, window_width_seconds):
     # The resulting time index is expected to have gaps (where no events occur
     # in a time interval larger than a second), Up-sample the time index to fill
     # these gaps, with 1s resolution and fill the missing values with zeros.
-    eventcountseries = e.resample('1S').asfreq().fillna(0)
+    eventcountseries = e.asfreq('1S', fill_value=0)
 
     # Construct Window object using `df.rolling()` whereas a time offset string
     # defines the rolling window width in seconds.
