@@ -240,8 +240,6 @@ def analyze_matches(matcher, matches):
     # Build pandas DataFrame from match objects.
     log.info('Build main DataFrame')
 
-    # Expect that all event types (matches) have a `request_date` set.
-    # Not all event types have a duration associated.
     props_dict = {}
 
     if isinstance(matches[0], RequestLogLineMatch):
@@ -262,6 +260,15 @@ def analyze_matches(matcher, matches):
     SORT_LOG_LINES_BY_TIME = True
     if SORT_LOG_LINES_BY_TIME:
         df.sort_index(inplace=True)
+
+    starttime = matches[0].request_date
+    log.info('Starttime with tz: %s', starttime)
+    if starttime.tzinfo:
+        local_starttime = (starttime - starttime.utcoffset()).replace(tzinfo=None)
+        log.info('Starttime (local time): %s', local_starttime)
+
+    timespan = matches[-1].request_date - matches[0].request_date
+    log.info('Time span: %r', pretty_timedelta(timespan))
 
     log.info('Show top N items for current matcher')
 
@@ -362,6 +369,9 @@ def plot_rolling_request_rate(df, matcher):
     # http://stackoverflow.com/a/30666612/145400
     ax.legend(['3 s window', '150 s window'], numpoints=4)
     ax.set_title(matcher.description)
+
+    # https://matplotlib.org/users/tight_layout_guide.html
+    # Use tight_layout?
     figure = ax.get_figure()
 
     filename = 'analysis-%s.pdf' % (
@@ -453,6 +463,21 @@ def calc_rolling_request_rate(series, window_width_seconds):
     # seconds. Return just the slice `[window_width_seconds:]`.
     # TODO: also strip off the right bit
     return rolling_request_rate[window_width_seconds:]
+
+
+def pretty_timedelta(timedelta):
+    seconds = int(timedelta.total_seconds())
+    days, seconds = divmod(seconds, 86400)
+    hours, seconds = divmod(seconds, 3600)
+    minutes, seconds = divmod(seconds, 60)
+    if days > 0:
+        return '%dd%dh%dm%ds' % (days, hours, minutes, seconds)
+    elif hours > 0:
+        return '%dh%dm%ds' % (hours, minutes, seconds)
+    elif minutes > 0:
+        return '%dm%ds' % (minutes, seconds)
+    else:
+        return '%ds' % (seconds,)
 
 
 if __name__ == "__main__":
