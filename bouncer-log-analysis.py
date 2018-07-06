@@ -95,7 +95,7 @@ class RequestLogLineMatcher(RegexLineMatcher):
     #     )
 
     _pattern_tpl = (
-        '.+? \[(?P<request_date>.+?)\] '
+        '.+? \[(?P<request_date>[^[]+?)\] '
         '"(GET|POST|PUT|DELETE|HEAD) (?P<url>%(urlprefix)s.*?) HTTP/1\.(0|1)" '
         '(?P<status_code>[0-9]{3}) (?P<body_size>[0-9]+).+?'
         '"(?P<user_agent>.*)" \((?P<duration_seconds>.+?) s\)$'
@@ -147,7 +147,7 @@ class AuditLogLineMatch:
 class AuditLogLineMatcher(RegexLineMatcher):
 
     _pattern_tpl = (
-        '.+? \[(?P<request_date>.+?)\] '
+        '.+? \[(?P<request_date>[^[]+?)\] '
         '\[(?P<process_id>[0-9]+?):(?P<thread_id>.+?)\] .*'
         '\[bouncer.app.internal.PolicyQuery\] INFO: type=audit '
         'timestamp=(?P<timestamp_iso8601>.+?) '
@@ -188,17 +188,17 @@ class AuditLogLineMatcher(RegexLineMatcher):
 def main():
 
     matchers = [
-#        RequestLogLineMatcher(
-#            description='Response-acking lines (all requests)'),
+        RequestLogLineMatcher(
+            description='Response-acking lines (all requests)'),
         RequestLogLineMatcher(
             urlprefix='/acs/api/v1/internal',
             description='Response-acking lines (requests to /internal)'
             ),
-#        RequestLogLineMatcher(
-#            urlprefix='/acs/api/v1/auth/login',
-#            description='Response-acking lines (Requests to /auth/login)'
-#            ),
-#        AuditLogLineMatcher()
+        RequestLogLineMatcher(
+            urlprefix='/acs/api/v1/auth/login',
+            description='Response-acking lines (Requests to /auth/login)'
+            ),
+        AuditLogLineMatcher()
         ]
 
 
