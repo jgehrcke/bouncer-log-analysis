@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
+import matplotlib
 import matplotlib.pyplot as plt
 plt.style.use('ggplot')
 
@@ -14,6 +15,13 @@ logfmt = "%(asctime)s.%(msecs)03d %(name)s %(levelname)s: %(message)s"
 datefmt = "%y%m%d-%H:%M:%S"
 logging.basicConfig(format=logfmt, datefmt=datefmt, level=logging.INFO)
 log = logging.getLogger()
+
+
+def matplotlib_config():
+    matplotlib.rcParams['figure.figsize'] = [10.5, 7.0]
+    matplotlib.rcParams['figure.dpi'] = 100
+    matplotlib.rcParams['savefig.dpi'] = 150
+   #mpl.rcParams['font.size'] = 12
 
 
 def apache_datestring_to_datetime_obj(s):
@@ -180,23 +188,25 @@ class AuditLogLineMatcher(RegexLineMatcher):
 def main():
 
     matchers = [
-        RequestLogLineMatcher(
-            description='Response-acking lines (all requests)'),
+#        RequestLogLineMatcher(
+#            description='Response-acking lines (all requests)'),
         RequestLogLineMatcher(
             urlprefix='/acs/api/v1/internal',
             description='Response-acking lines (requests to /internal)'
             ),
-        RequestLogLineMatcher(
-            urlprefix='/acs/api/v1/auth/login',
-            description='Response-acking lines (Requests to /auth/login)'
-            ),
-        AuditLogLineMatcher()
+#        RequestLogLineMatcher(
+#            urlprefix='/acs/api/v1/auth/login',
+#            description='Response-acking lines (Requests to /auth/login)'
+#            ),
+#        AuditLogLineMatcher()
         ]
 
 
     log.info('Read input lines from stdin')
     input_lines = list(sys.stdin)
     log.info('Number of input lines: %s', len(input_lines))
+
+    matplotlib_config()
 
     for matcher in matchers:
         log.info('Parse input lines via %s', matcher)
@@ -309,6 +319,7 @@ def plot_request_duration_histogram(df, matcher):
     plt.xlabel('Request duration [s]')
     plt.ylabel('Number of events')
     plt.title(matcher.description)
+    plt.tight_layout(rect=(0,0,1,0.98))
 
     # Logarithmic view makes a lot of sense, that seems to be nice.
     # Should also find a way to have a clear visualization for a _single_ event
@@ -320,9 +331,9 @@ def plot_request_duration_histogram(df, matcher):
 def plot_rolling_request_rate(df, matcher):
 
     # Do not care about event time, process time series in firstm column.
-    rolling_request_rate = calc_rolling_request_rate(
+    rolling_request_rate, df_dft, df_dft_periods = calc_rolling_request_rate(
         df.iloc[:, 0],
-        window_width_seconds=3
+        window_width_seconds=2
         )
 
     if not len(rolling_request_rate):
@@ -345,9 +356,9 @@ def plot_rolling_request_rate(df, matcher):
     ax.set_ylabel('Rolling window average request rate [Hz]')
 
     # Do not care about event time, process time series in firstm column.
-    smooth_rolling_request_rate = calc_rolling_request_rate(
+    smooth_rolling_request_rate, _ , _ = calc_rolling_request_rate(
         df.iloc[:, 0],
-        window_width_seconds=150
+        window_width_seconds=60
         )
 
     log.info('Plot request rate over (wide) rolling window')
@@ -367,12 +378,13 @@ def plot_rolling_request_rate(df, matcher):
 
     # The legend story is shitty with pandas intertwined w/ mpl.
     # http://stackoverflow.com/a/30666612/145400
-    ax.legend(['3 s window', '150 s window'], numpoints=4)
+    ax.legend(['2 s window', '60 s window'], numpoints=4)
     ax.set_title(matcher.description)
 
     # https://matplotlib.org/users/tight_layout_guide.html
     # Use tight_layout?
-    figure = ax.get_figure()
+   #figure = ax.get_figure()
+    plt.tight_layout(rect=(0,0,1,0.95))
 
     filename = 'analysis-%s.pdf' % (
         re.sub('[^A-Za-z0-9]+', '-', matcher.description).lower())
@@ -381,7 +393,70 @@ def plot_rolling_request_rate(df, matcher):
     plt.savefig(filename)
 
 
-# Make a nice Fourier analysis
+    #plt.figure()
+    log.info('Plot freq spec from request rate over narrow rolling window')
+
+    df_dft.plot(
+        linestyle='dashdot',
+        #linestyle='None',
+        marker='.',
+        color='black',
+        markersize=5,
+    )
+    plt.xlabel('Frequency [1/s]')
+    plt.ylabel('Amplitude')
+    set_title(matcher.description)
+    set_subtitle('Freq spec from narrow rolling request rate -- mixed load test 180614')
+    plt.tight_layout(rect=(0,0,1,0.95))
+
+    # The frequency vector f can be transformed into a period vector p
+    # by inverting it: p = 1/f
+
+
+    # Showing the frequency axis as periudicity axis by
+    # just changing the tick labels is a hack that does not
+    # allow for properly zooming into the data (in interactive
+    # graph viewing).
+    # df_dft.plot(
+    #     linestyle='dashdot',
+    #     #linestyle='None',
+    #     marker='.',
+    #     color='black',
+    #     markersize=5,
+    # )
+    # plt.xlabel('Period [s]')
+    # plt.ylabel('Amplitude')
+    # ax = plt.gca()
+    # ax.set_xticklabels(periods)
+
+    # Plot the spectrum over "period" instead of time.
+
+    #df_dft.index = periods
+    # df_dft.plot(
+    #     linestyle='dashdot',
+    #     #linestyle='None',
+    #     marker='.',
+    #     color='black',
+    #     markersize=5,
+    # )
+    # plt.xlabel('Period [s]')
+    # plt.ylabel('Amplitude')
+    # plt.xlim(15000, 0)  # decreasing time
+
+    ax = df_dft_periods.plot(
+        linestyle='dashdot',
+        #linestyle='None',
+        marker='.',
+        color='black',
+        markersize=5,
+    )
+    plt.xlabel('Period [s]')
+    plt.ylabel('Amplitude')
+    ax.set_xscale('log')
+    set_title(matcher.description)
+    set_subtitle('Freq spec from narrow rolling request rate -- mixed load test 180614')
+    plt.tight_layout(rect=(0,0,1,0.95))
+
 
 def calc_rolling_request_rate(series, window_width_seconds):
     """
@@ -462,7 +537,100 @@ def calc_rolling_request_rate(series, window_width_seconds):
     # leftmost samples with a bad result corresponds to the window width in
     # seconds. Return just the slice `[window_width_seconds:]`.
     # TODO: also strip off the right bit
-    return rolling_request_rate[window_width_seconds:]
+    rolling_request_rate = rolling_request_rate[window_width_seconds:]
+
+    # Analyze data using a DFT, for revealing periodically occurring events.
+    # Base frequency for signal generation: 1 Hz. The signal are the sample
+    # values of the rolling request rate time series.
+    signal = rolling_request_rate.values
+
+    # The sampling frequency is 1 Hz.
+    f_sample = 1
+    # Length of DFT input and output.
+    N = len(signal)
+
+    # The frequency delta between data points in the DFT output.
+    df = f_sample / N
+
+    # Build frequency vector for DFT output interpretation.
+    freqs = np.arange(0, f_sample, df)
+
+    # Get amplitude spectrum through proper normalization (normalization
+    # determined based on sampling a simple linear combination of harmonics plus
+    # offset).
+    amplitudes = 2 * np.abs(np.fft.fft(signal)) / N
+    amplitudes[0] = amplitudes[0]/2
+
+    # For a DFT of a truly periodic signal we would not want the data for
+    # frequencies larger than the Nyquist frequency (0.5 Hz for 1 Hz sampling
+    # rate) and slice at int(np.floor(N/2.0+1)). Here, we want to see much less,
+    # because:
+    #   - while the sampling rate is 1 second, we know that the samples stem
+    #     from averaging with a rolling window of larger width. That is, only
+    #     the values for frequencies significantly smaller than the Nyquist
+    #     frequency of 0.5 Hz. The values between 0 Hz and 0.1 Hz seem to be
+    #     more trustworthy.
+    #
+    #   - we are actually interested in seeing events that occur every 10 seconds or
+    #     much less frequent (such as every 10 minutes).
+    #
+    # Select a frequency window of 0 Hz to 1/5 Hz for these reasons.
+    freq_rlimit = 1/5.0
+
+    # Find the index that has a value closest to `freq_rlimit`.
+    idx_rlimit = (np.abs(freqs - freq_rlimit)).argmin()
+
+    amplitudes_selection = amplitudes[0:idx_rlimit]
+    freqs_selection = freqs[0:idx_rlimit]
+
+    df_dft = pd.DataFrame(
+        data={
+            'amplitudes': amplitudes_selection
+        },
+        index=freqs_selection
+    )
+
+    # Create a view of amplitudes over period (s) instead of over frequency
+    # (1/s). The first value in `freqs_selection` is zero. float64 division by
+    # zero sets special value inf. Invert the frequency values.
+    periods = np.float64(1.0) / freqs_selection
+    # `periods` looks for example like this:
+    # [  inf 2912.  1456.  970.66666667  728 .... 5.01204819 ]
+    # Remove the inf value, and reverse the view on the rest.
+    periods = np.flipud(periods[1:])
+    amplitudes_selection = np.flipud(amplitudes_selection[1:])
+
+    df_dft_periods = pd.DataFrame(
+        data={
+            'amplitudes': amplitudes_selection
+        },
+        index=periods
+    )
+
+    return rolling_request_rate, df_dft, df_dft_periods
+
+
+def set_title(text):
+    fig = plt.gcf()
+    fig.text(
+        0.5, 0.98,
+        text,
+        verticalalignment='center',
+        horizontalalignment='center',
+        fontsize=14
+    )
+
+
+def set_subtitle(text):
+    fig = plt.gcf()
+    fig.text(
+        0.5, 0.95,
+        text,
+        verticalalignment='center',
+        horizontalalignment='center',
+        fontsize=10,
+        color='gray'
+    )
 
 
 def pretty_timedelta(timedelta):
