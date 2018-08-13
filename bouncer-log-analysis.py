@@ -1,3 +1,19 @@
+#!/usr/bin/env python
+# Copyright 2018 Jan-Philip Gehrcke
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy of
+# the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
+
+import argparse
 import logging
 import re
 import sys
@@ -21,7 +37,7 @@ def matplotlib_config():
     matplotlib.rcParams['figure.figsize'] = [10.5, 7.0]
     matplotlib.rcParams['figure.dpi'] = 100
     matplotlib.rcParams['savefig.dpi'] = 150
-   #mpl.rcParams['font.size'] = 12
+    #mpl.rcParams['font.size'] = 12
 
 
 def apache_datestring_to_datetime_obj(s):
@@ -48,8 +64,11 @@ def iso8601_timestamp_to_datetime_obj(s):
 
 class Matcher:
 
-    def __init__(self, description):
+    def __init__(self, description, subtitle):
+        # Is meant to contain a precise description for this matcher.
         self.description = description
+        # Is meant to provide context (such as experiment date, name)
+        self.subtitle = subtitle
 
     def __repr__(self):
         return '<%s(%r)>' % (self.__class__.__name__, self.description)
@@ -156,10 +175,10 @@ class AuditLogLineMatcher(RegexLineMatcher):
         'reason="(?P<reason>.+?)"'
         )
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         # Escape re meta chars in URL prefix and insert prefix in pattern
         # template.
-        super().__init__(description="Audit log lines")
+        super().__init__(description="Audit log lines", **kwargs)
         #urlprefix_re = re.escape(urlprefix)
         #self._pattern = self._pattern_tpl % {'urlprefix': urlprefix_re}
         #log.info('%s pattern: %s', self, self._pattern)
@@ -187,20 +206,37 @@ class AuditLogLineMatcher(RegexLineMatcher):
 
 def main():
 
+    parser = argparse.ArgumentParser(
+        description='A program for Bouncer log analysis',
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    # parser.add_argument(
+    #     '--series',
+    #     nargs=2,
+    #     metavar=('DATAFILE_PATH', 'DESCRIPTION'),
+    #     action='append',
+    #     required=True
+    # )
+    parser.add_argument('--title')
+    parser.add_argument('--subtitle')
+    args = parser.parse_args()
+
     matchers = [
         RequestLogLineMatcher(
-            description='Response-acking lines (all requests)'),
+            description='Response-acking lines (all requests)',
+            subtitle=args.subtitle),
         RequestLogLineMatcher(
             urlprefix='/acs/api/v1/internal',
-            description='Response-acking lines (requests to /internal)'
+            description='Response-acking lines (requests to /internal)',
+            subtitle=args.subtitle
             ),
         RequestLogLineMatcher(
             urlprefix='/acs/api/v1/auth/login',
-            description='Response-acking lines (Requests to /auth/login)'
+            description='Response-acking lines (Requests to /auth/login)',
+            subtitle=args.subtitle
             ),
-        AuditLogLineMatcher()
+        AuditLogLineMatcher(subtitle=args.subtitle)
         ]
-
 
     log.info('Read input lines from stdin')
     input_lines = list(sys.stdin)
@@ -274,6 +310,9 @@ def analyze_matches(matcher, matches):
     starttime = matches[0].request_date
     log.info('Starttime with tz: %s', starttime)
     if starttime.tzinfo:
+        # Note(JP): this is probably wrong in some cases. Use `pytz` instead.
+        # See https://stackoverflow.com/q/27531718/145400 and
+        # https://stackoverflow.com/a/5499906/145400.
         local_starttime = (starttime - starttime.utcoffset()).replace(tzinfo=None)
         log.info('Starttime (local time): %s', local_starttime)
 
@@ -318,14 +357,16 @@ def plot_request_duration_histogram(df, matcher):
     plt.yscale('symlog')
     plt.xlabel('Request duration [s]')
     plt.ylabel('Number of events')
-    plt.title(matcher.description)
-    plt.tight_layout(rect=(0,0,1,0.98))
+    set_title(matcher.description)
+    set_subtitle(matcher.subtitle)
+    plt.tight_layout(rect=(0,0,1,0.95))
 
     # Logarithmic view makes a lot of sense, that seems to be nice.
     # Should also find a way to have a clear visualization for a _single_ event
     # which is 10^0 i.e. 0 i.e. a bar with height 0 in the default bar
     # representation, which swallows the data point.
     # symlog seems to do exactly this.
+    savefig('reqdur-histogram-' + matcher.description)
 
 
 def plot_rolling_request_rate(df, matcher):
@@ -352,7 +393,7 @@ def plot_rolling_request_rate(df, matcher):
         markeredgecolor='gray'
         )
 
-    ax.set_xlabel('Local time')
+    ax.set_xlabel('Time')
     ax.set_ylabel('Rolling window average request rate [Hz]')
 
     # Do not care about event time, process time series in firstm column.
@@ -379,35 +420,37 @@ def plot_rolling_request_rate(df, matcher):
     # The legend story is shitty with pandas intertwined w/ mpl.
     # http://stackoverflow.com/a/30666612/145400
     ax.legend(['2 s window', '60 s window'], numpoints=4)
-    ax.set_title(matcher.description)
+    set_title(matcher.description)
+    set_subtitle(matcher.subtitle)
 
     # https://matplotlib.org/users/tight_layout_guide.html
     # Use tight_layout?
    #figure = ax.get_figure()
     plt.tight_layout(rect=(0,0,1,0.95))
 
-    filename = 'analysis-%s.pdf' % (
-        re.sub('[^A-Za-z0-9]+', '-', matcher.description).lower())
+    savefig('reqrate-' + matcher.description)
 
-    log.info('Writing PDF figure to %s', filename)
-    plt.savefig(filename)
+    # filename = 'analysis-%s.pdf' % (
+    #     re.sub('[^A-Za-z0-9]+', '-', matcher.description).lower())
 
+    # log.info('Writing PDF figure to %s', filename)
+    # plt.savefig(filename)
 
     #plt.figure()
-    log.info('Plot freq spec from request rate over narrow rolling window')
+    # log.info('Plot freq spec from request rate over narrow rolling window')
 
-    df_dft.plot(
-        linestyle='dashdot',
-        #linestyle='None',
-        marker='.',
-        color='black',
-        markersize=5,
-    )
-    plt.xlabel('Frequency [1/s]')
-    plt.ylabel('Amplitude')
-    set_title(matcher.description)
-    set_subtitle('Freq spec from narrow rolling request rate -- mixed load test 180614')
-    plt.tight_layout(rect=(0,0,1,0.95))
+    # df_dft.plot(
+    #     linestyle='dashdot',
+    #     #linestyle='None',
+    #     marker='.',
+    #     color='black',
+    #     markersize=5,
+    # )
+    # plt.xlabel('Frequency [1/s]')
+    # plt.ylabel('Amplitude')
+    # set_title(matcher.description)
+    # set_subtitle('Freq spec from narrow rolling request rate -- mixed load test 180614')
+    # plt.tight_layout(rect=(0,0,1,0.95))
 
     # The frequency vector f can be transformed into a period vector p
     # by inverting it: p = 1/f
@@ -454,8 +497,11 @@ def plot_rolling_request_rate(df, matcher):
     plt.ylabel('Amplitude')
     ax.set_xscale('log')
     set_title(matcher.description)
-    set_subtitle('Freq spec from narrow rolling request rate -- mixed load test 180614')
+    subtitle = 'Freq spec from narrow rolling request rate -- ' + \
+        matcher.subtitle
+    set_subtitle(subtitle)
     plt.tight_layout(rect=(0,0,1,0.95))
+    savefig('freqspec ' + matcher.description)
 
 
 def calc_rolling_request_rate(series, window_width_seconds):
@@ -631,6 +677,44 @@ def set_subtitle(text):
         fontsize=10,
         color='gray'
     )
+
+
+def savefig(title):
+    today = datetime.now().strftime('%Y-%m-%d')
+
+    # Lowercase, replace special chars with whitespace, join on whitespace.
+    cleantitle = '-'.join(re.sub('[^a-z0-9]+', ' ', title.lower()).split())
+
+    fname = today + '_' + cleantitle
+    fpath_cmd = fname + '.command'
+
+    log.info('Writing command to %s', fpath_cmd)
+    command = poor_mans_cmdline()
+    with open(fpath_cmd, 'w') as f:
+        f.write(command)
+
+    fpath_figure = fname + '.png'
+    log.info('Writing PNG figure to %s', fpath_figure)
+    plt.savefig(fpath_figure, dpi=150)
+
+
+def poor_mans_cmdline():
+    command_fragments = []
+    command_fragments.append("python " + sys.argv[0])
+
+    for arg in sys.argv[1:]:
+        if arg.startswith('--'):
+            command_fragments.append(' \\\n')
+            command_fragments.append(arg)
+        else:
+            if " " in arg:
+                command_fragments.append(" '%s'" % (arg, ))
+            else:
+                command_fragments.append(" %s" % (arg, ))
+
+    command_fragments.append('\n')
+
+    return ''.join(command_fragments)
 
 
 def pretty_timedelta(timedelta):
