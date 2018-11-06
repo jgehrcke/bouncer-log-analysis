@@ -497,9 +497,12 @@ def plot_rolling_request_rate(df, matcher):
     plt.ylabel('Amplitude')
     ax.set_xscale('log')
     set_title(matcher.description)
-    subtitle = 'Freq spec from narrow rolling request rate -- ' + \
-        matcher.subtitle
-    set_subtitle(subtitle)
+    try:
+        subtitle = 'Freq spec from narrow rolling request rate -- ' + \
+            matcher.subtitle
+        set_subtitle(subtitle)
+    except (TypeError):
+        pass
     plt.tight_layout(rect=(0,0,1,0.95))
     savefig('freqspec ' + matcher.description)
 
