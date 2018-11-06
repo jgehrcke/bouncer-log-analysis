@@ -217,8 +217,15 @@ def main():
     #     action='append',
     #     required=True
     # )
-    parser.add_argument('--title')
-    parser.add_argument('--subtitle')
+    parser.add_argument(
+        '--subtitle',
+        required=True,
+        help=(
+            'Added to every plot. Recommendation: add an expressive descriptor '
+            'such as a JIRA ticket ID so that the context is known by looking '
+            'at a figure later on.'
+        )
+    )
     args = parser.parse_args()
 
     matchers = [
@@ -497,12 +504,9 @@ def plot_rolling_request_rate(df, matcher):
     plt.ylabel('Amplitude')
     ax.set_xscale('log')
     set_title(matcher.description)
-    try:
-        subtitle = 'Freq spec from narrow rolling request rate -- ' + \
-            matcher.subtitle
-        set_subtitle(subtitle)
-    except (TypeError):
-        pass
+    subtitle = 'Freq spec from narrow rolling request rate -- ' + \
+        matcher.subtitle
+    set_subtitle(subtitle)
     plt.tight_layout(rect=(0,0,1,0.95))
     savefig('freqspec ' + matcher.description)
 
