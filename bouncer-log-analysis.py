@@ -24,7 +24,8 @@ import numpy as np
 import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
-plt.style.use('ggplot')
+
+plt.style.use("ggplot")
 
 
 logfmt = "%(asctime)s.%(msecs)03d %(name)s %(levelname)s: %(message)s"
@@ -34,10 +35,10 @@ log = logging.getLogger()
 
 
 def matplotlib_config():
-    matplotlib.rcParams['figure.figsize'] = [10.5, 7.0]
-    matplotlib.rcParams['figure.dpi'] = 100
-    matplotlib.rcParams['savefig.dpi'] = 150
-    #mpl.rcParams['font.size'] = 12
+    matplotlib.rcParams["figure.figsize"] = [10.5, 7.0]
+    matplotlib.rcParams["figure.dpi"] = 100
+    matplotlib.rcParams["savefig.dpi"] = 150
+    # mpl.rcParams['font.size'] = 12
 
 
 def apache_datestring_to_datetime_obj(s):
@@ -45,7 +46,7 @@ def apache_datestring_to_datetime_obj(s):
     Ref:
     https://github.com/benoitc/gunicorn/blob/master/gunicorn/glogging.py#L333
     """
-    return datetime.strptime(s, '%d/%b/%Y:%H:%M:%S %z')
+    return datetime.strptime(s, "%d/%b/%Y:%H:%M:%S %z")
 
 
 def iso8601_timestamp_to_datetime_obj(s):
@@ -55,15 +56,14 @@ def iso8601_timestamp_to_datetime_obj(s):
     Ignore the fractional part for now.
     """
     # Split off Z in case of e.g. `2017-05-16T22:37:56Z`
-    s = s[:-1].split('.')[0]
+    s = s[:-1].split(".")[0]
     try:
-        return datetime.strptime(s, '%Y-%m-%dT%H:%M:%S')
+        return datetime.strptime(s, "%Y-%m-%dT%H:%M:%S")
     except ValueError:
         print(s)
 
 
 class Matcher:
-
     def __init__(self, description, subtitle):
         # Is meant to contain a precise description for this matcher.
         self.description = description
@@ -71,11 +71,10 @@ class Matcher:
         self.subtitle = subtitle
 
     def __repr__(self):
-        return '<%s(%r)>' % (self.__class__.__name__, self.description)
+        return "<%s(%r)>" % (self.__class__.__name__, self.description)
 
 
 class RegexLineMatcher(Matcher):
-
     _pattern = None
 
     def match(self, line, linenumber):
@@ -91,20 +90,18 @@ class RegexLineMatcher(Matcher):
 
 
 class RequestLogLineMatch:
-
     __slots__ = [
-        '_linenumber',
-        'url',
-        'status_code',
-        'body_size',
-        'user_agent',
-        'duration_seconds',
-        'request_date'
-        ]
+        "_linenumber",
+        "url",
+        "status_code",
+        "body_size",
+        "user_agent",
+        "duration_seconds",
+        "request_date",
+    ]
 
 
 class RequestLogLineMatcher(RegexLineMatcher):
-
     # That is the legacy pattern.
     # _pattern_tpl = (
     #     '.+? \[(?P<request_date>.+?)\] '
@@ -113,20 +110,27 @@ class RequestLogLineMatcher(RegexLineMatcher):
     #     '"(?P<user_agent>.*)" \((?P<duration_seconds>.+?) s\)$'
     #     )
 
+    # _pattern_tpl = (
+    #     r".+? \[(?P<request_date>[^[]+?)\] "
+    #     r'"(GET|POST|PUT|DELETE|HEAD) (?P<url>%(urlprefix)s.*?) HTTP/1\.(0|1)" '
+    #     r"(?P<status_code>[0-9]{3}) (?P<body_size>[0-9]+).+?"
+    #     r' "-" "(?P<user_agent>.*)" \((?P<duration_seconds>.+?) s\)$'
+    # )
+
     _pattern_tpl = (
-        '.+? \[(?P<request_date>[^[]+?)\] '
-        '"(GET|POST|PUT|DELETE|HEAD) (?P<url>%(urlprefix)s.*?) HTTP/1\.(0|1)" '
-        '(?P<status_code>[0-9]{3}) (?P<body_size>[0-9]+).+?'
-        '"(?P<user_agent>.*)" \((?P<duration_seconds>.+?) s\)$'
-        )
+        r".+? \[(?P<request_date>[\S ]+?)\] "
+        r"\"(GET|POST|PUT|DELETE|HEAD) (?P<url>%(urlprefix)s.*?) HTTP.+?\" "
+        r"(?P<status_code>[0-9]{3}) (?P<body_size>[0-9]+).+? \"-\" "
+        r"\"(?P<user_agent>.*?)\" \((?P<duration_seconds>.+?) s\)\"$"
+    )
 
     def __init__(self, urlprefix="", **kwargs):
         # Escape re meta chars in URL prefix and insert prefix in pattern
         # template.
         super().__init__(**kwargs)
         urlprefix_re = re.escape(urlprefix)
-        self._pattern = self._pattern_tpl % {'urlprefix': urlprefix_re}
-        log.info('%s pattern: %s', self, self._pattern)
+        self._pattern = self._pattern_tpl % {"urlprefix": urlprefix_re}
+        log.info("%s pattern: %s", self, self._pattern)
 
     def _matchobj(self, rm):
         """
@@ -137,51 +141,48 @@ class RequestLogLineMatcher(RegexLineMatcher):
             Abstract match object adjusted to purpose.
         """
         m = RequestLogLineMatch()
-        m.url = rm.group('url')
-        #m.status_code = int(rm.group('status_code'))
-        m.body_size = int(rm.group('body_size'))
-        #m.user_agent = rm.group('user_agent')
-        m.duration_seconds = float(rm.group('duration_seconds'))
-        m.request_date = apache_datestring_to_datetime_obj(
-            rm.group('request_date'))
+        m.url = rm.group("url")
+        # m.status_code = int(rm.group('status_code'))
+        m.body_size = int(rm.group("body_size"))
+        # m.user_agent = rm.group('user_agent')
+        m.duration_seconds = float(rm.group("duration_seconds"))
+        m.request_date = apache_datestring_to_datetime_obj(rm.group("request_date"))
         return m
 
 
 class AuditLogLineMatch:
-
     __slots__ = [
-        '_linenumber',
-        'timestap_iso8601',
-        'srcip',
-        'uid',
-        'action',
-        'object',
-        'reason',
-        'thread_id',
-        'process_id',
-        'request_date'
-        ]
+        "_linenumber",
+        "timestap_iso8601",
+        "srcip",
+        "uid",
+        "action",
+        "object",
+        "reason",
+        "thread_id",
+        "process_id",
+        "request_date",
+    ]
 
 
 class AuditLogLineMatcher(RegexLineMatcher):
-
     _pattern_tpl = (
-        '.+? \[(?P<request_date>[^[]+?)\] '
-        '\[(?P<process_id>[0-9]+?):(?P<thread_id>.+?)\] .*'
-        '\[bouncer.app.internal.PolicyQuery\] INFO: type=audit '
-        'timestamp=(?P<timestamp_iso8601>.+?) '
-        'srcip=(?P<src_ip>.+?) authorizer=bouncer uid=(?P<uid>.+?) '
-        'action=(?P<action>.+?) object=(?P<object>.+?) result=(?P<result>.+?) '
+        ".+? \[(?P<request_date>[^[]+?)\] "
+        "\[(?P<process_id>[0-9]+?):(?P<thread_id>.+?)\] .*"
+        "\[bouncer.app.internal.PolicyQuery\] INFO: type=audit "
+        "timestamp=(?P<timestamp_iso8601>.+?) "
+        "srcip=(?P<src_ip>.+?) authorizer=bouncer uid=(?P<uid>.+?) "
+        "action=(?P<action>.+?) object=(?P<object>.+?) result=(?P<result>.+?) "
         'reason="(?P<reason>.+?)"'
-        )
+    )
 
     def __init__(self, **kwargs):
         # Escape re meta chars in URL prefix and insert prefix in pattern
         # template.
         super().__init__(description="Audit log lines", **kwargs)
-        #urlprefix_re = re.escape(urlprefix)
-        #self._pattern = self._pattern_tpl % {'urlprefix': urlprefix_re}
-        #log.info('%s pattern: %s', self, self._pattern)
+        # urlprefix_re = re.escape(urlprefix)
+        # self._pattern = self._pattern_tpl % {'urlprefix': urlprefix_re}
+        # log.info('%s pattern: %s', self, self._pattern)
         self._pattern = self._pattern_tpl
 
     def _matchobj(self, rm):
@@ -193,22 +194,22 @@ class AuditLogLineMatcher(RegexLineMatcher):
             Abstract match object adjusted to purpose.
         """
         m = AuditLogLineMatch()
-        m.uid = rm.group('uid')
-        m.reason = rm.group('reason')
-        m.object = rm.group('object')
-        m.action = rm.group('action')
-        m.process_id = int(rm.group('process_id'))
-        m.thread_id = rm.group('thread_id')
+        m.uid = rm.group("uid")
+        m.reason = rm.group("reason")
+        m.object = rm.group("object")
+        m.action = rm.group("action")
+        m.process_id = int(rm.group("process_id"))
+        m.thread_id = rm.group("thread_id")
         m.request_date = iso8601_timestamp_to_datetime_obj(
-            rm.group('timestamp_iso8601'))
+            rm.group("timestamp_iso8601")
+        )
         return m
 
 
 def main():
-
     parser = argparse.ArgumentParser(
-        description='A program for Bouncer log analysis',
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        description="A program for Bouncer log analysis",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     # parser.add_argument(
     #     '--series',
@@ -218,44 +219,44 @@ def main():
     #     required=True
     # )
     parser.add_argument(
-        '--subtitle',
+        "--subtitle",
         required=True,
         help=(
-            'Added to every plot. Recommendation: add an expressive descriptor '
-            'such as a JIRA ticket ID so that the context is known by looking '
-            'at a figure later on.'
-        )
+            "Added to every plot. Recommendation: add an expressive descriptor "
+            "such as a JIRA ticket ID so that the context is known by looking "
+            "at a figure later on."
+        ),
     )
     args = parser.parse_args()
 
     matchers = [
         RequestLogLineMatcher(
-            description='Response-acking lines (all requests)',
-            subtitle=args.subtitle),
+            description="Response-acking lines (all requests)", subtitle=args.subtitle
+        ),
         RequestLogLineMatcher(
-            urlprefix='/acs/api/v1/internal',
-            description='Response-acking lines (requests to /internal)',
-            subtitle=args.subtitle
-            ),
-        RequestLogLineMatcher(
-            urlprefix='/acs/api/v1/auth/login',
-            description='Response-acking lines (Requests to /auth/login)',
-            subtitle=args.subtitle
-            ),
-        AuditLogLineMatcher(subtitle=args.subtitle)
-        ]
+            urlprefix="/api",
+            description="Response-acking lines (requests to /api...)",
+            subtitle=args.subtitle,
+        ),
+        # RequestLogLineMatcher(
+        #     urlprefix="/acs/api/v1/auth/login",
+        #     description="Response-acking lines (Requests to /auth/login)",
+        #     subtitle=args.subtitle,
+        # ),
+        # AuditLogLineMatcher(subtitle=args.subtitle),
+    ]
 
-    log.info('Read input lines from stdin')
+    log.info("Read input lines from stdin")
     input_lines = list(sys.stdin)
-    log.info('Number of input lines: %s', len(input_lines))
+    log.info("Number of input lines: %s", len(input_lines))
 
     matplotlib_config()
 
     for matcher in matchers:
-        log.info('Parse input lines via %s', matcher)
-        matches_gen = (matcher.match(l, i+1) for i, l in enumerate(input_lines))
+        log.info("Parse input lines via %s", matcher)
+        matches_gen = (matcher.match(l, i + 1) for i, l in enumerate(input_lines))
         matches = [m for m in matches_gen if m is not None]
-        log.info('Number of matches: %s', len(matches))
+        log.info("Number of matches: %s", len(matches))
         if not matches:
             continue
         analyze_matches(matcher, matches)
@@ -264,69 +265,65 @@ def main():
 
 
 def analyze_matches(matcher, matches):
-
     if not matches:
-        log.info('No matches to analyze')
+        log.info("No matches to analyze")
         return
 
-    log.info('Analyzing matches.')
+    log.info("Analyzing matches.")
 
     # `df.rolling(time_offset)` requires the time index to be monotonic.
     # However, during sane system time updates the logged request date might go
     # backwards. Detect such backwards time jumps and attempt to correct for
     # them.
-    log.info('Check increasing monotonicity of time index')
+    log.info("Check increasing monotonicity of time index")
     time_monotonicity_tolerance = timedelta(seconds=2)
     for i, m in enumerate(matches[1:]):
         m_previous = matches[i]
         if m.request_date < m_previous.request_date:
             delta = m_previous.request_date - m.request_date
             log.info(
-                'log not monotonic at log line number %s (delta: %s)',
+                "log not monotonic at log line number %s (delta: %s)",
                 m._linenumber,
-                delta
-                )
+                delta,
+            )
             if delta < time_monotonicity_tolerance:
-                log.info('Add delta(%s) to match timestamp', delta)
+                log.info("Add delta(%s) to match timestamp", delta)
                 m.request_date = m.request_date + delta
 
     # Build pandas DataFrame from match objects.
-    log.info('Build main DataFrame')
+    log.info("Build main DataFrame")
 
     props_dict = {}
 
     if isinstance(matches[0], RequestLogLineMatch):
-        props_dict['duration_seconds'] = [m.duration_seconds for m in matches]
+        props_dict["duration_seconds"] = [m.duration_seconds for m in matches]
 
     if isinstance(matches[0], AuditLogLineMatch):
-        props_dict['object'] = [m.object for m in matches]
+        props_dict["object"] = [m.object for m in matches]
 
-    df = pd.DataFrame(
-        props_dict,
-        index=[pd.Timestamp(m.request_date) for m in matches]
-        )
+    df = pd.DataFrame(props_dict, index=[pd.Timestamp(m.request_date) for m in matches])
 
     # Bigger gaps and discontinuities in time can have tolerable or intolerable
     # root causes. Only a human can decide. Let's tolerate them here, and just
     # blindly sort samples by time.
-    log.info('Sort time index')
+    log.info("Sort time index")
     SORT_LOG_LINES_BY_TIME = True
     if SORT_LOG_LINES_BY_TIME:
         df.sort_index(inplace=True)
 
     starttime = matches[0].request_date
-    log.info('Starttime with tz: %s', starttime)
+    log.info("Starttime with tz: %s", starttime)
     if starttime.tzinfo:
         # Note(JP): this is probably wrong in some cases. Use `pytz` instead.
         # See https://stackoverflow.com/q/27531718/145400 and
         # https://stackoverflow.com/a/5499906/145400.
         local_starttime = (starttime - starttime.utcoffset()).replace(tzinfo=None)
-        log.info('Starttime (local time): %s', local_starttime)
+        log.info("Starttime (local time): %s", local_starttime)
 
     timespan = matches[-1].request_date - matches[0].request_date
-    log.info('Time span: %r', pretty_timedelta(timespan))
+    log.info("Time span: %r", pretty_timedelta(timespan))
 
-    log.info('Show top N items for current matcher')
+    log.info("Show top N items for current matcher")
 
     if isinstance(matches[0], AuditLogLineMatch):
         events = (m.object for m in matches)
@@ -338,7 +335,7 @@ def analyze_matches(matcher, matches):
     counter = Counter(events)
     for label, count in counter.most_common(10):
         percent = int(count / float(len(matches)) * 100)
-        print('{:>8} ({:>3} %): {}'.format(count, percent, label))
+        print("{:>8} ({:>3} %): {}".format(count, percent, label))
 
     plot_rolling_request_rate(df, matcher)
 
@@ -348,94 +345,84 @@ def analyze_matches(matcher, matches):
 
 
 def plot_request_duration_histogram(df, matcher):
-
-    log.info('Plot request duration histogram')
+    log.info("Plot request duration histogram")
     plt.figure()
-    hist, bins = np.histogram(df['duration_seconds'], bins=100)
+    hist, bins = np.histogram(df["duration_seconds"], bins=100)
     width = 0.7 * (bins[1] - bins[0])
     center = (bins[:-1] + bins[1:]) / 2
-    plt.bar(
-        center,
-        hist,
-        align='center',
-        width=width,
-        alpha=0.5
-        )
-    plt.yscale('symlog')
-    plt.xlabel('Request duration [s]')
-    plt.ylabel('Number of events')
+    plt.bar(center, hist, align="center", width=width, alpha=0.5)
+    plt.yscale("symlog")
+    plt.xlabel("Request duration [s]")
+    plt.ylabel("Number of events")
     set_title(matcher.description)
     set_subtitle(matcher.subtitle)
-    plt.tight_layout(rect=(0,0,1,0.95))
+    plt.tight_layout(rect=(0, 0, 1, 0.95))
 
     # Logarithmic view makes a lot of sense, that seems to be nice.
     # Should also find a way to have a clear visualization for a _single_ event
     # which is 10^0 i.e. 0 i.e. a bar with height 0 in the default bar
     # representation, which swallows the data point.
     # symlog seems to do exactly this.
-    savefig('reqdur-histogram-' + matcher.description)
+    savefig("reqdur-histogram-" + matcher.description)
 
 
 def plot_rolling_request_rate(df, matcher):
-
     # Do not care about event time, process time series in firstm column.
     rolling_request_rate, df_dft, df_dft_periods = calc_rolling_request_rate(
-        df.iloc[:, 0],
-        window_width_seconds=2
-        )
+        df.iloc[:, 0], window_width_seconds=2
+    )
 
     if not len(rolling_request_rate):
-        log.info('rolling request rate analysis: not enough data')
+        log.info("rolling request rate analysis: not enough data")
         return
 
     plt.figure()
 
-    log.info('Plot request rate over (narrow) rolling window')
+    log.info("Plot request rate over (narrow) rolling window")
 
     ax = rolling_request_rate.plot(
-        linestyle='dashdot',
-        #linestyle='None',
-        marker='.',
+        linestyle="dashdot",
+        # linestyle='None',
+        marker=".",
         markersize=0.8,
-        markeredgecolor='gray'
-        )
+        markeredgecolor="gray",
+    )
 
-    ax.set_xlabel('Time')
-    ax.set_ylabel('Rolling window average request rate [Hz]')
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Rolling window average request rate [Hz]")
 
     # Do not care about event time, process time series in firstm column.
-    smooth_rolling_request_rate, _ , _ = calc_rolling_request_rate(
-        df.iloc[:, 0],
-        window_width_seconds=60
-        )
+    smooth_rolling_request_rate, _, _ = calc_rolling_request_rate(
+        df.iloc[:, 0], window_width_seconds=60
+    )
 
-    log.info('Plot request rate over (wide) rolling window')
+    log.info("Plot request rate over (wide) rolling window")
     try:
         ax2 = smooth_rolling_request_rate.plot(
-            linestyle='dashdot',
-            #linestyle='None',
-            marker='.',
-            color='black',
+            linestyle="dashdot",
+            # linestyle='None',
+            marker=".",
+            color="black",
             markersize=0.8,
-            ax=ax
-            )
+            ax=ax,
+        )
     except TypeError as e:
-        if 'no numeric data to plot' not in str(e):
+        if "no numeric data to plot" not in str(e):
             raise
-        log.info('rolling request rate: not enough data for the smooth curve')
+        log.info("rolling request rate: not enough data for the smooth curve")
 
     # The legend story is shitty with pandas intertwined w/ mpl.
     # http://stackoverflow.com/a/30666612/145400
-    ax.legend(['2 s window', '60 s window'], numpoints=4)
+    ax.legend(["2 s window", "60 s window"], numpoints=4)
     set_title(matcher.description)
     set_subtitle(matcher.subtitle)
 
     # https://matplotlib.org/users/tight_layout_guide.html
     # Use tight_layout?
-   #figure = ax.get_figure()
-    plt.tight_layout(rect=(0,0,1,0.95))
+    # figure = ax.get_figure()
+    plt.tight_layout(rect=(0, 0, 1, 0.95))
 
-    savefig('reqrate-' + matcher.description)
+    savefig("reqrate-" + matcher.description)
 
     # filename = 'analysis-%s.pdf' % (
     #     re.sub('[^A-Za-z0-9]+', '-', matcher.description).lower())
@@ -443,7 +430,7 @@ def plot_rolling_request_rate(df, matcher):
     # log.info('Writing PDF figure to %s', filename)
     # plt.savefig(filename)
 
-    #plt.figure()
+    # plt.figure()
     # log.info('Plot freq spec from request rate over narrow rolling window')
 
     # df_dft.plot(
@@ -461,7 +448,6 @@ def plot_rolling_request_rate(df, matcher):
 
     # The frequency vector f can be transformed into a period vector p
     # by inverting it: p = 1/f
-
 
     # Showing the frequency axis as periudicity axis by
     # just changing the tick labels is a hack that does not
@@ -481,7 +467,7 @@ def plot_rolling_request_rate(df, matcher):
 
     # Plot the spectrum over "period" instead of time.
 
-    #df_dft.index = periods
+    # df_dft.index = periods
     # df_dft.plot(
     #     linestyle='dashdot',
     #     #linestyle='None',
@@ -494,21 +480,20 @@ def plot_rolling_request_rate(df, matcher):
     # plt.xlim(15000, 0)  # decreasing time
 
     ax = df_dft_periods.plot(
-        linestyle='dashdot',
-        #linestyle='None',
-        marker='.',
-        color='black',
+        linestyle="dashdot",
+        # linestyle='None',
+        marker=".",
+        color="black",
         markersize=5,
     )
-    plt.xlabel('Period [s]')
-    plt.ylabel('Amplitude')
-    ax.set_xscale('log')
+    plt.xlabel("Period [s]")
+    plt.ylabel("Amplitude")
+    ax.set_xscale("log")
     set_title(matcher.description)
-    subtitle = 'Freq spec from narrow rolling request rate -- ' + \
-        matcher.subtitle
+    subtitle = "Freq spec from narrow rolling request rate -- " + matcher.subtitle
     set_subtitle(subtitle)
-    plt.tight_layout(rect=(0,0,1,0.95))
-    savefig('freqspec ' + matcher.description)
+    plt.tight_layout(rect=(0, 0, 1, 0.95))
+    savefig("freqspec " + matcher.description)
 
 
 def calc_rolling_request_rate(series, window_width_seconds):
@@ -520,9 +505,8 @@ def calc_rolling_request_rate(series, window_width_seconds):
     assert isinstance(window_width_seconds, int)
 
     log.info(
-        'Calculate request rate over rolling window (width: %s s)',
-        window_width_seconds
-        )
+        "Calculate request rate over rolling window (width: %s s)", window_width_seconds
+    )
 
     # Example series:
     # 2017-03-08 17:37:19+00:00    0.000350
@@ -549,14 +533,13 @@ def calc_rolling_request_rate(series, window_width_seconds):
     # The resulting time index is expected to have gaps (where no events occur
     # in a time interval larger than a second), Up-sample the time index to fill
     # these gaps, with 1s resolution and fill the missing values with zeros.
-    eventcountseries = e.asfreq('1S', fill_value=0)
+    eventcountseries = e.asfreq("1S", fill_value=0)
 
     # Construct Window object using `df.rolling()` whereas a time offset string
     # defines the rolling window width in seconds.
     window = eventcountseries.rolling(
-        window='%sS' % window_width_seconds,
-        min_periods=0
-        )
+        window="%sS" % window_width_seconds, min_periods=0
+    )
 
     # Count the number of events (requests) within the rolling window.
     s = window.sum()
@@ -565,7 +548,7 @@ def calc_rolling_request_rate(series, window_width_seconds):
     # request rate [Hz] in that time window.
     rolling_request_rate = s / float(window_width_seconds)
 
-    new_rate_column_name = 'request_rate_hz_%ss_window' % window_width_seconds
+    new_rate_column_name = "request_rate_hz_%ss_window" % window_width_seconds
     rolling_request_rate.rename(new_rate_column_name, inplace=True)
 
     # In the resulting Series object, the request rate value is assigned to the
@@ -612,7 +595,7 @@ def calc_rolling_request_rate(series, window_width_seconds):
     # determined based on sampling a simple linear combination of harmonics plus
     # offset).
     amplitudes = 2 * np.abs(np.fft.fft(signal)) / N
-    amplitudes[0] = amplitudes[0]/2
+    amplitudes[0] = amplitudes[0] / 2
 
     # For a DFT of a truly periodic signal we would not want the data for
     # frequencies larger than the Nyquist frequency (0.5 Hz for 1 Hz sampling
@@ -628,7 +611,7 @@ def calc_rolling_request_rate(series, window_width_seconds):
     #     much less frequent (such as every 10 minutes).
     #
     # Select a frequency window of 0 Hz to 1/5 Hz for these reasons.
-    freq_rlimit = 1/5.0
+    freq_rlimit = 1 / 5.0
 
     # Find the index that has a value closest to `freq_rlimit`.
     idx_rlimit = (np.abs(freqs - freq_rlimit)).argmin()
@@ -637,10 +620,7 @@ def calc_rolling_request_rate(series, window_width_seconds):
     freqs_selection = freqs[0:idx_rlimit]
 
     df_dft = pd.DataFrame(
-        data={
-            'amplitudes': amplitudes_selection
-        },
-        index=freqs_selection
+        data={"amplitudes": amplitudes_selection}, index=freqs_selection
     )
 
     # Create a view of amplitudes over period (s) instead of over frequency
@@ -654,10 +634,7 @@ def calc_rolling_request_rate(series, window_width_seconds):
     amplitudes_selection = np.flipud(amplitudes_selection[1:])
 
     df_dft_periods = pd.DataFrame(
-        data={
-            'amplitudes': amplitudes_selection
-        },
-        index=periods
+        data={"amplitudes": amplitudes_selection}, index=periods
     )
 
     return rolling_request_rate, df_dft, df_dft_periods
@@ -666,42 +643,44 @@ def calc_rolling_request_rate(series, window_width_seconds):
 def set_title(text):
     fig = plt.gcf()
     fig.text(
-        0.5, 0.98,
+        0.5,
+        0.98,
         text,
-        verticalalignment='center',
-        horizontalalignment='center',
-        fontsize=14
+        verticalalignment="center",
+        horizontalalignment="center",
+        fontsize=14,
     )
 
 
 def set_subtitle(text):
     fig = plt.gcf()
     fig.text(
-        0.5, 0.95,
+        0.5,
+        0.95,
         text,
-        verticalalignment='center',
-        horizontalalignment='center',
+        verticalalignment="center",
+        horizontalalignment="center",
         fontsize=10,
-        color='gray'
+        color="gray",
     )
 
 
 def savefig(title):
-    today = datetime.now().strftime('%Y-%m-%d')
+    today = datetime.now().strftime("%Y-%m-%d")
 
     # Lowercase, replace special chars with whitespace, join on whitespace.
-    cleantitle = '-'.join(re.sub('[^a-z0-9]+', ' ', title.lower()).split())
+    cleantitle = "-".join(re.sub("[^a-z0-9]+", " ", title.lower()).split())
 
-    fname = today + '_' + cleantitle
-    fpath_cmd = fname + '.command'
+    fname = today + "_" + cleantitle
+    fpath_cmd = fname + ".command"
 
-    log.info('Writing command to %s', fpath_cmd)
+    log.info("Writing command to %s", fpath_cmd)
     command = poor_mans_cmdline()
-    with open(fpath_cmd, 'w') as f:
+    with open(fpath_cmd, "w") as f:
         f.write(command)
 
-    fpath_figure = fname + '.png'
-    log.info('Writing PNG figure to %s', fpath_figure)
+    fpath_figure = fname + ".png"
+    log.info("Writing PNG figure to %s", fpath_figure)
     plt.savefig(fpath_figure, dpi=150)
 
 
@@ -710,18 +689,18 @@ def poor_mans_cmdline():
     command_fragments.append("python " + sys.argv[0])
 
     for arg in sys.argv[1:]:
-        if arg.startswith('--'):
-            command_fragments.append(' \\\n')
+        if arg.startswith("--"):
+            command_fragments.append(" \\\n")
             command_fragments.append(arg)
         else:
             if " " in arg:
-                command_fragments.append(" '%s'" % (arg, ))
+                command_fragments.append(" '%s'" % (arg,))
             else:
-                command_fragments.append(" %s" % (arg, ))
+                command_fragments.append(" %s" % (arg,))
 
-    command_fragments.append('\n')
+    command_fragments.append("\n")
 
-    return ''.join(command_fragments)
+    return "".join(command_fragments)
 
 
 def pretty_timedelta(timedelta):
@@ -730,13 +709,13 @@ def pretty_timedelta(timedelta):
     hours, seconds = divmod(seconds, 3600)
     minutes, seconds = divmod(seconds, 60)
     if days > 0:
-        return '%dd%dh%dm%ds' % (days, hours, minutes, seconds)
+        return "%dd%dh%dm%ds" % (days, hours, minutes, seconds)
     elif hours > 0:
-        return '%dh%dm%ds' % (hours, minutes, seconds)
+        return "%dh%dm%ds" % (hours, minutes, seconds)
     elif minutes > 0:
-        return '%dm%ds' % (minutes, seconds)
+        return "%dm%ds" % (minutes, seconds)
     else:
-        return '%ds' % (seconds,)
+        return "%ds" % (seconds,)
 
 
 if __name__ == "__main__":
