@@ -114,11 +114,11 @@ class RequestLogLineMatcher(RegexLineMatcher):
     #     )
 
     _pattern_tpl = (
-        '.+? \[(?P<request_date>[^[]+?)\] '
-        '"(GET|POST|PUT|DELETE|HEAD) (?P<url>%(urlprefix)s.*?) HTTP/1\.(0|1)" '
-        '(?P<status_code>[0-9]{3}) (?P<body_size>[0-9]+).+?'
-        '"(?P<user_agent>.*)" \((?P<duration_seconds>.+?) s\)$'
-        )
+        r".+? \[(?P<request_date>[\S ]+?)\] "
+        r"\"(GET|POST|PUT|DELETE|HEAD) (?P<url>%(urlprefix)s.*?) HTTP.+?\" "
+        r"(?P<status_code>[0-9]{3}) (?P<body_size>[0-9]+).+? \"-\" "
+        r"\"(?P<user_agent>.*?)\" \((?P<duration_seconds>.+?) s\)\"$"
+    )
 
     def __init__(self, urlprefix="", **kwargs):
         # Escape re meta chars in URL prefix and insert prefix in pattern
