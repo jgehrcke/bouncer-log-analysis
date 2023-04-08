@@ -230,22 +230,20 @@ def main():
 
     matchers = [
         RequestLogLineMatcher(
-            description='Response-acking lines (all requests)',
-            subtitle=args.subtitle),
+            description="Response-acking lines (all requests)", subtitle=args.subtitle
+        ),
         RequestLogLineMatcher(
-            urlprefix='/acs/api/v1/internal',
-            description='Response-acking lines (requests to /internal)',
-            subtitle=args.subtitle
-            ),
-        RequestLogLineMatcher(
-            urlprefix='/acs/api/v1/auth/login',
-            description='Response-acking lines (Requests to /auth/login)',
-            subtitle=args.subtitle
-            ),
-        AuditLogLineMatcher(subtitle=args.subtitle)
-        ]
-
-    log.info('Read input lines from stdin')
+            urlprefix="/api",
+            description="Response-acking lines (requests to /api...)",
+            subtitle=args.subtitle,
+        ),
+        # RequestLogLineMatcher(
+        #     urlprefix="/acs/api/v1/auth/login",
+        #     description="Response-acking lines (Requests to /auth/login)",
+        #     subtitle=args.subtitle,
+        # ),
+        # AuditLogLineMatcher(subtitle=args.subtitle),
+    ]
     input_lines = list(sys.stdin)
     log.info('Number of input lines: %s', len(input_lines))
 
